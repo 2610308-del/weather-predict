@@ -378,4 +378,14 @@ with tab2:
             ax.annotate(
                 f'{api_target_year}년 {selected_month}월 예측\n평균 {val_cycle:.1f}℃ (최고 {val_max_cycle:.1f}℃)',
                 xy=(api_target_year, val_cycle), xytext=(-15, 16), textcoords='offset points',
-                ha='center', fontweight='bold', fontsize=10, color='#
+                ha='center', fontweight='bold', fontsize=10, color='#d62728',
+                bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='#d62728', alpha=0.95)
+            )
+            ax.xaxis.get_major_locator().set_params(integer=True)
+            ax.set_title(f'[{city_clean_name}] 기상청 실시간 데이터 기반 {api_target_year}년 {selected_month}월 기온 시뮬레이션', fontsize=13.5, fontweight='bold', pad=15)
+            ax.set_xlabel('연도')
+            ax.set_ylabel(f'{selected_month}월 평균 기온 (℃)')
+            ax.grid(True, linestyle=':', alpha=0.6)
+            ax.legend(loc='best', fontsize=9)
+            plt.tight_layout()
+            st.pyplot(fig)

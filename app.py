@@ -1,3 +1,4 @@
+import calendar
 import json
 import platform
 import time
@@ -27,7 +28,7 @@ plt.rcParams['axes.unicode_minus'] = False
 st.title("🌡️ AI 기반 대한민국 미래 기후 예측 플랫폼")
 st.write("장기 기후 데이터(2000~2026)와 실시간 기상청 API 데이터를 결합해 미래 기온과 폭염을 시뮬레이션합니다.")
 
-tab1, tab2 = st.tabs(["📊 2000~2026 장기 기후 데이터 AI 예측 (CSV)", "🛰️ 실시간 기상청 API 여름 기온 예측 (25개 도시)"])
+tab1, tab2 = st.tabs(["📊 2000~2026 장기 기후 데이터 AI 예측 (CSV)", "🛰️ 실시간 기상청 API 월별 기온 예측 (27개 도시)"])
 
 # ==============================================================================
 # TAB 1: 업로드한 CSV 파일 기반 장기 기후 데이터 분석 및 AI 예측 (13개 도시)
@@ -66,7 +67,6 @@ with tab1:
 
         y = city_df[y_col].values
 
-        # AI 머신러닝 모델 학습 (선형 vs 다항)
         model_linear = make_pipeline(PolynomialFeatures(1), Ridge(alpha=1.0)).fit(X, y)
         model_poly = make_pipeline(PolynomialFeatures(2), Ridge(alpha=10.0)).fit(X, y)
 
@@ -115,7 +115,6 @@ with tab1:
         plt.tight_layout()
         st.pyplot(fig)
 
-        # 다중 도시 비교 섹션 추가
         st.divider()
         st.subheader("🏙️ 여러 도시 동시에 비교하기")
         compare_cities = st.multiselect(
@@ -149,62 +148,48 @@ with tab1:
 
 
 # ==============================================================================
-# TAB 2: 실시간 기상청 API 연동 (전국 25개 주요 관측소 확장)
+# TAB 2: 실시간 기상청 API 연동 (원하는 연도 + 원하는 월 선택 가능)
 # ==============================================================================
 with tab2:
-    st.subheader("기상청 실시간 서버 연동 8월 한여름 기온 예측 (전국 25개 도시)")
+    st.subheader("기상청 실시간 서버 연동 월별 미래 기온 예측 (전국 27개 도시)")
     MY_API_KEY = '404e80f5bbda1aa9285ba87f66e0e384246caa1dbe9a7b4c14d9a1a598c81239'
 
-    # 전국 권역별 주요 ASOS 관측 지점 25곳
     STATIONS = {
-        '서울 (수도권)': '108',
-        '인천 (수도권)': '112',
-        '수원 (경기)': '119',
-        '춘천 (강원)': '101',
-        '원주 (강원)': '114',
-        '강릉 (강원 영동)': '105',
-        '속초 (강원 영동)': '90',
-        '청주 (충북)': '131',
-        '충주 (충북)': '127',
-        '대전 (충남)': '133',
-        '천안 (충남)': '232',
-        '서산 (충남)': '129',
-        '전주 (전북)': '146',
-        '군산 (전북)': '140',
-        '광주 (전남)': '156',
-        '목포 (전남)': '165',
-        '여수 (전남)': '168',
-        '순천 (전남)': '174',
-        '대구 (경북)': '143',
-        '포항 (경북)': '138',
-        '안동 (경북)': '136',
-        '부산 (경남)': '159',
-        '울산 (경남)': '152',
-        '창원 (경남)': '155',
-        '진주 (경남)': '192',
-        '제주 (제주)': '184',
-        '서귀포 (제주)': '189',
+        '서울 (수도권)': '108', '인천 (수도권)': '112', '수원 (경기)': '119',
+        '춘천 (강원)': '101', '원주 (강원)': '114', '강릉 (강원 영동)': '105', '속초 (강원 영동)': '90',
+        '청주 (충북)': '131', '충주 (충북)': '127', '대전 (충남)': '133', '천안 (충남)': '232', '서산 (충남)': '129',
+        '전주 (전북)': '146', '군산 (전북)': '140', '광주 (전남)': '156', '목포 (전남)': '165', '여수 (전남)': '168', '순천 (전남)': '174',
+        '대구 (경북)': '143', '포항 (경북)': '138', '안동 (경북)': '136',
+        '부산 (경남)': '159', '울산 (경남)': '152', '창원 (경남)': '155', '진주 (경남)': '192',
+        '제주 (제주)': '184', '서귀포 (제주)': '189',
     }
 
-    col1, col2 = st.columns([1.2, 1])
+    col1, col2, col3 = st.columns([1.3, 1, 0.9])
     with col1:
-        selected_station_label = st.selectbox("관측 도시 선택 (전국 27개 지점)", list(STATIONS.keys()), key="api_city")
+        selected_station_label = st.selectbox("관측 도시 선택", list(STATIONS.keys()), key="api_city")
     with col2:
         api_target_year = st.number_input("예측할 미래 연도", min_value=2025, max_value=2100, value=2040, step=1, key="api_year")
+    with col3:
+        selected_month = st.selectbox("예측할 월 선택", list(range(1, 13)), index=7, format_func=lambda m: f"{m}월", key="api_month")
 
-    if st.button("🛰️ 기상청 API 실시간 수집 및 AI 예측 실행", type="primary", use_container_width=True):
+    if st.button(f"🛰️ 기상청 API 수집 및 {api_target_year}년 {selected_month}월 AI 예측 실행", type="primary", use_container_width=True):
         stn_id = STATIONS[selected_station_label]
         city_clean_name = selected_station_label.split()[0]
         base_url = 'https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList'
-        years, aug_avg_temps = [], []
+        years, month_avg_temps, month_max_temps = [], [], []
 
-        progress_bar = st.progress(0, text=f"기상청 서버에서 [{city_clean_name}] 15년치 8월 데이터를 불러오는 중...")
+        progress_bar = st.progress(0, text=f"기상청 서버에서 [{city_clean_name}] 최근 15년 {selected_month}월 데이터를 불러오는 중...")
 
         for idx, y in enumerate(range(2010, 2025)):
+            # 윤년(2월 29일) 및 월별 말일(28, 30, 31일) 자동 계산
+            last_day = calendar.monthrange(y, selected_month)[1]
+            start_dt = f"{y}{selected_month:02d}01"
+            end_dt = f"{y}{selected_month:02d}{last_day:02d}"
+
             params = {
-                'serviceKey': MY_API_KEY, 'pageNo': '1', 'numOfRows': '31',
+                'serviceKey': MY_API_KEY, 'pageNo': '1', 'numOfRows': str(last_day),
                 'dataType': 'JSON', 'dataCd': 'ASOS', 'dateCd': 'DAY',
-                'startDt': f'{y}0801', 'endDt': f'{y}0831', 'stnIds': stn_id,
+                'startDt': start_dt, 'endDt': end_dt, 'stnIds': stn_id,
             }
             full_url = f"{base_url}?{urllib.parse.urlencode(params)}"
             req = urllib.request.Request(full_url, headers={'User-Agent': 'Mozilla/5.0'})
@@ -216,15 +201,17 @@ with tab2:
                         if res['response']['header']['resultCode'] == '00':
                             items = res['response']['body']['items']['item']
                             daily_avgs = [float(it['avgTa']) for it in items if it.get('avgTa')]
+                            daily_maxs = [float(it['maxTa']) for it in items if it.get('maxTa')]
                             if daily_avgs:
                                 years.append(y)
-                                aug_avg_temps.append(np.mean(daily_avgs))
+                                month_avg_temps.append(np.mean(daily_avgs))
+                                month_max_temps.append(np.mean(daily_maxs))
                             break
                 except Exception:
                     pass
                 time.sleep(0.2)
 
-            progress_bar.progress((idx + 1) / 15, text=f"{y}년 8월 데이터 수집 완료 ({idx + 1}/15)")
+            progress_bar.progress((idx + 1) / 15, text=f"{y}년 {selected_month}월 데이터 수집 완료 ({idx + 1}/15)")
 
         progress_bar.empty()
 
@@ -232,39 +219,44 @@ with tab2:
             st.error("기상청 서버 응답 지연으로 데이터를 충분히 불러오지 못했습니다. 잠시 후 다시 시도해주세요.")
         else:
             X = np.array(years).reshape(-1, 1)
-            y_avg = np.array(aug_avg_temps)
+            y_avg = np.array(month_avg_temps)
+            y_max = np.array(month_max_temps)
 
-            model = make_pipeline(PolynomialFeatures(1), Ridge(alpha=1.0)).fit(X, y_avg)
+            model_avg = make_pipeline(PolynomialFeatures(1), Ridge(alpha=1.0)).fit(X, y_avg)
+            model_max = make_pipeline(PolynomialFeatures(1), Ridge(alpha=1.0)).fit(X, y_max)
+
             future_X = np.arange(years[0], api_target_year + 1).reshape(-1, 1)
-            pred_curve = model.predict(future_X)
-            pred_val = float(model.predict([[api_target_year]])[0])
+            pred_curve = model_avg.predict(future_X)
+            pred_val = float(model_avg.predict([[api_target_year]])[0])
+            pred_max_val = float(model_max.predict([[api_target_year]])[0])
             past_mean = float(np.mean(y_avg))
 
             st.divider()
-            m1, m2 = st.columns(2)
-            m1.metric(f"{api_target_year}년 8월 예상 평균기온", f"{pred_val:.2f} ℃", f"{pred_val - past_mean:+.2f} ℃ (15년 평균 대비)")
-            m2.metric("과거 15년(2010~2024) 8월 평균", f"{past_mean:.2f} ℃")
+            m1, m2, m3 = st.columns(3)
+            m1.metric(f"{api_target_year}년 {selected_month}월 예상 평균기온", f"{pred_val:.2f} ℃", f"{pred_val - past_mean:+.2f} ℃ (15년 평균 대비)")
+            m2.metric(f"{api_target_year}년 {selected_month}월 예상 낮 최고기온", f"{pred_max_val:.2f} ℃")
+            m3.metric(f"과거 15년 {selected_month}월 평균", f"{past_mean:.2f} ℃")
 
             fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(years, y_avg, marker='o', linewidth=2, color='#1f77b4', label=f'{city_clean_name} 실제 8월 평균기온')
+            ax.plot(years, y_avg, marker='o', linewidth=2, color='#1f77b4', label=f'{city_clean_name} 실제 {selected_month}월 평균기온')
             ax.plot(future_X.flatten(), pred_curve, linestyle='--', linewidth=2, color='#d62728', label='AI 예측 추세선')
             ax.scatter(api_target_year, pred_val, color='#d62728', s=160, zorder=5, edgecolors='black')
 
-            y_min, y_max = min(np.min(y_avg), pred_val), max(np.max(y_avg), pred_val)
-            margin = (y_max - y_min) * 0.25 if y_max != y_min else 1.5
-            ax.set_ylim(y_min - margin, y_max + margin)
+            y_min, y_max_val = min(np.min(y_avg), pred_val), max(np.max(y_avg), pred_val)
+            margin = (y_max_val - y_min) * 0.25 if y_max_val != y_min else 1.5
+            ax.set_ylim(y_min - margin, y_max_val + margin)
             ax.set_xlim(years[0] - 1, api_target_year + max(2, int((api_target_year - years[0]) * 0.08)))
 
             ax.annotate(
-                f'{api_target_year}년 예측\n{pred_val:.1f}℃',
+                f'{api_target_year}년 {selected_month}월 예측\n평균 {pred_val:.1f}℃ (최고 {pred_max_val:.1f}℃)',
                 xy=(api_target_year, pred_val), xytext=(0, 14), textcoords='offset points',
-                ha='center', fontweight='bold', fontsize=11, color='#d62728',
-                bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#d62728', alpha=0.9)
+                ha='center', fontweight='bold', fontsize=10, color='#d62728',
+                bbox=dict(boxstyle='round,pad=0.35', fc='white', ec='#d62728', alpha=0.95)
             )
             ax.xaxis.get_major_locator().set_params(integer=True)
-            ax.set_title(f'[{city_clean_name}] 기상청 실시간 데이터 기반 {api_target_year}년 8월 기온 예측', fontsize=13.5, fontweight='bold', pad=15)
+            ax.set_title(f'[{city_clean_name}] 기상청 실시간 데이터 기반 {api_target_year}년 {selected_month}월 기온 예측', fontsize=13.5, fontweight='bold', pad=15)
             ax.set_xlabel('연도')
-            ax.set_ylabel('8월 평균 기온 (℃)')
+            ax.set_ylabel(f'{selected_month}월 평균 기온 (℃)')
             ax.grid(True, linestyle=':', alpha=0.6)
             ax.legend(loc='best')
             plt.tight_layout()

@@ -27,8 +27,7 @@ plt.rcParams['axes.unicode_minus'] = False
 st.title("🌡️ AI 기반 대한민국 미래 기후 예측 플랫폼")
 st.write("장기 기후 데이터(2000~2026)와 실시간 기상청 API 데이터를 결합해 미래 기온과 폭염을 시뮬레이션합니다.")
 
-# 두 가지 기능을 탭으로 분리
-tab1, tab2 = st.tabs(["📊 2000~2026 장기 기후 데이터 AI 예측 (CSV)", "🛰️ 실시간 기상청 API 여름 기온 예측"])
+tab1, tab2 = st.tabs(["📊 2000~2026 장기 기후 데이터 AI 예측 (CSV)", "🛰️ 실시간 기상청 API 여름 기온 예측 (25개 도시)"])
 
 # ==============================================================================
 # TAB 1: 업로드한 CSV 파일 기반 장기 기후 데이터 분석 및 AI 예측 (13개 도시)
@@ -59,16 +58,15 @@ with tab1:
 
         X = city_df[['Year']].values
         if "기온" in metric_choice:
-            y = city_df['Avg_Temp_C'].values
-            unit, color_main = "℃", "#1f77b4"
+            y_col, unit, color_main = 'Avg_Temp_C', "℃", "#1f77b4"
         elif "폭염" in metric_choice:
-            y = city_df['Heatwave_Days'].values
-            unit, color_main = "일", "#ff7f0e"
+            y_col, unit, color_main = 'Heatwave_Days', "일", "#ff7f0e"
         else:
-            y = city_df['Precipitation_mm'].values
-            unit, color_main = "mm", "#2ca02c"
+            y_col, unit, color_main = 'Precipitation_mm', "mm", "#2ca02c"
 
-        # AI 머신러닝 모델 학습 (다항 회귀 vs 선형 회귀 자동 앙상블/비교)
+        y = city_df[y_col].values
+
+        # AI 머신러닝 모델 학습 (선형 vs 다항)
         model_linear = make_pipeline(PolynomialFeatures(1), Ridge(alpha=1.0)).fit(X, y)
         model_poly = make_pipeline(PolynomialFeatures(2), Ridge(alpha=10.0)).fit(X, y)
 
@@ -79,16 +77,14 @@ with tab1:
         val_linear = float(model_linear.predict([[csv_target_year]])[0])
         val_poly = float(model_poly.predict([[csv_target_year]])[0])
         past_avg = float(np.mean(y))
-        recent_2020s = float(city_df[city_df['Year'] >= 2020][y_col := ('Avg_Temp_C' if "기온" in metric_choice else ('Heatwave_Days' if "폭염" in metric_choice else 'Precipitation_mm'))].mean())
+        recent_2020s = float(city_df[city_df['Year'] >= 2020][y_col].mean())
 
-        # 주요 지표 카드 출력
         st.divider()
         m1, m2, m3 = st.columns(3)
         m1.metric(f"{csv_target_year}년 AI 예측 (선형 추세)", f"{val_linear:.1f} {unit}", f"{val_linear - past_avg:+.1f} {unit} (27년 평균 대비)")
         m2.metric(f"{csv_target_year}년 AI 예측 (가속 추세)", f"{val_poly:.1f} {unit}", f"{val_poly - past_avg:+.1f} {unit} (27년 평균 대비)")
         m3.metric("2000~2026년 전체 평균", f"{past_avg:.1f} {unit}", f"2020년대 평균: {recent_2020s:.1f} {unit}")
 
-        # 그래프 그리기
         fig, ax = plt.subplots(figsize=(10, 5.2))
         ax.plot(city_df['Year'], y, marker='o', linewidth=2, markersize=5, color=color_main, label=f'{selected_kr_city} 실제 관측값 (2000~2026)')
         ax.plot(future_years.flatten(), pred_linear_curve, linestyle='--', linewidth=2, color='#d62728', label='AI 선형 예측 추세')
@@ -119,7 +115,29 @@ with tab1:
         plt.tight_layout()
         st.pyplot(fig)
 
-        # 원본 데이터 표 미리보기 및 통계
+        # 다중 도시 비교 섹션 추가
+        st.divider()
+        st.subheader("🏙️ 여러 도시 동시에 비교하기")
+        compare_cities = st.multiselect(
+            "비교할 도시들을 선택하세요 (최대 5개 권장)",
+            list(KR_TO_EN_MAP.keys()),
+            default=["서울", "대구", "부산", "제주"]
+        )
+        if compare_cities:
+            fig_comp, ax_comp = plt.subplots(figsize=(10, 4.5))
+            for c_kr in compare_cities:
+                c_en = KR_TO_EN_MAP[c_kr]
+                sub_df = df[df['City'] == c_en].sort_values('Year')
+                ax_comp.plot(sub_df['Year'], sub_df[y_col], marker='o', markersize=4, linewidth=1.8, label=c_kr)
+            ax_comp.xaxis.get_major_locator().set_params(integer=True)
+            ax_comp.set_title(f'주요 도시별 {metric_choice} 추이 비교 (2000~2026)', fontsize=13, fontweight='bold')
+            ax_comp.set_xlabel('연도')
+            ax_comp.set_ylabel(metric_choice)
+            ax_comp.grid(True, linestyle=':', alpha=0.6)
+            ax_comp.legend(loc='best', ncol=len(compare_cities))
+            plt.tight_layout()
+            st.pyplot(fig_comp)
+
         with st.expander(f"📋 [{selected_kr_city}] 연도별 원본 기후 데이터 표 보기 (2000~2026)"):
             display_df = city_df[['Year', 'Decade', 'Avg_Temp_C', 'Heatwave_Days', 'Precipitation_mm']].rename(
                 columns={'Year': '연도', 'Decade': '연대', 'Avg_Temp_C': '연평균기온(℃)', 'Heatwave_Days': '폭염일수(일)', 'Precipitation_mm': '연강수량(mm)'}
@@ -131,28 +149,56 @@ with tab1:
 
 
 # ==============================================================================
-# TAB 2: 기존 실시간 기상청 API 연동 (8월 한여름 집중 분석)
+# TAB 2: 실시간 기상청 API 연동 (전국 25개 주요 관측소 확장)
 # ==============================================================================
 with tab2:
-    st.subheader("기상청 실시간 서버 연동 8월 한여름 기온 예측")
+    st.subheader("기상청 실시간 서버 연동 8월 한여름 기온 예측 (전국 25개 도시)")
     MY_API_KEY = '404e80f5bbda1aa9285ba87f66e0e384246caa1dbe9a7b4c14d9a1a598c81239'
+
+    # 전국 권역별 주요 ASOS 관측 지점 25곳
     STATIONS = {
-        '서울': '108', '인천': '112', '수원': '119', '대전': '133',
-        '대구': '143', '광주': '156', '부산': '159', '제주': '184',
+        '서울 (수도권)': '108',
+        '인천 (수도권)': '112',
+        '수원 (경기)': '119',
+        '춘천 (강원)': '101',
+        '원주 (강원)': '114',
+        '강릉 (강원 영동)': '105',
+        '속초 (강원 영동)': '90',
+        '청주 (충북)': '131',
+        '충주 (충북)': '127',
+        '대전 (충남)': '133',
+        '천안 (충남)': '232',
+        '서산 (충남)': '129',
+        '전주 (전북)': '146',
+        '군산 (전북)': '140',
+        '광주 (전남)': '156',
+        '목포 (전남)': '165',
+        '여수 (전남)': '168',
+        '순천 (전남)': '174',
+        '대구 (경북)': '143',
+        '포항 (경북)': '138',
+        '안동 (경북)': '136',
+        '부산 (경남)': '159',
+        '울산 (경남)': '152',
+        '창원 (경남)': '155',
+        '진주 (경남)': '192',
+        '제주 (제주)': '184',
+        '서귀포 (제주)': '189',
     }
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([1.2, 1])
     with col1:
-        api_city = st.selectbox("관측소 선택", list(STATIONS.keys()), key="api_city")
+        selected_station_label = st.selectbox("관측 도시 선택 (전국 27개 지점)", list(STATIONS.keys()), key="api_city")
     with col2:
         api_target_year = st.number_input("예측할 미래 연도", min_value=2025, max_value=2100, value=2040, step=1, key="api_year")
 
-    if st.button("🛰️ 기상청 API 실시간 수집 및 예측 실행", type="primary", use_container_width=True):
-        stn_id = STATIONS[api_city]
+    if st.button("🛰️ 기상청 API 실시간 수집 및 AI 예측 실행", type="primary", use_container_width=True):
+        stn_id = STATIONS[selected_station_label]
+        city_clean_name = selected_station_label.split()[0]
         base_url = 'https://apis.data.go.kr/1360000/AsosDalyInfoService/getWthrDataList'
         years, aug_avg_temps = [], []
 
-        progress_bar = st.progress(0, text="기상청 서버에서 15년치 8월 데이터를 불러오는 중...")
+        progress_bar = st.progress(0, text=f"기상청 서버에서 [{city_clean_name}] 15년치 8월 데이터를 불러오는 중...")
 
         for idx, y in enumerate(range(2010, 2025)):
             params = {
@@ -200,7 +246,7 @@ with tab2:
             m2.metric("과거 15년(2010~2024) 8월 평균", f"{past_mean:.2f} ℃")
 
             fig, ax = plt.subplots(figsize=(10, 5))
-            ax.plot(years, y_avg, marker='o', linewidth=2, color='#1f77b4', label=f'{api_city} 실제 8월 평균기온')
+            ax.plot(years, y_avg, marker='o', linewidth=2, color='#1f77b4', label=f'{city_clean_name} 실제 8월 평균기온')
             ax.plot(future_X.flatten(), pred_curve, linestyle='--', linewidth=2, color='#d62728', label='AI 예측 추세선')
             ax.scatter(api_target_year, pred_val, color='#d62728', s=160, zorder=5, edgecolors='black')
 
@@ -216,7 +262,7 @@ with tab2:
                 bbox=dict(boxstyle='round,pad=0.3', fc='white', ec='#d62728', alpha=0.9)
             )
             ax.xaxis.get_major_locator().set_params(integer=True)
-            ax.set_title(f'[{api_city}] 기상청 실시간 데이터 기반 {api_target_year}년 8월 기온 예측', fontsize=13.5, fontweight='bold', pad=15)
+            ax.set_title(f'[{city_clean_name}] 기상청 실시간 데이터 기반 {api_target_year}년 8월 기온 예측', fontsize=13.5, fontweight='bold', pad=15)
             ax.set_xlabel('연도')
             ax.set_ylabel('8월 평균 기온 (℃)')
             ax.grid(True, linestyle=':', alpha=0.6)
